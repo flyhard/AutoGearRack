@@ -271,6 +271,18 @@ do
   AGR.Slash("on")
 end
 
+-- 15b. /agr shows commands
+do
+  messages = {}
+  AGR.Slash("")
+  local found = false
+  for _, m in ipairs(messages) do if m:find("/agr scale <1|2>", 1, true) then found = true end end
+  check("/agr lists the commands", found)
+  messages = {}
+  AGR.Slash("help")
+  check("/agr help lists the commands", #messages >= 7)
+end
+
 -- 15. status runs without errors
 do
   local ok, err = pcall(AGR.Slash, "status")

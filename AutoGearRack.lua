@@ -370,6 +370,7 @@ end
 -- Slash commands
 ---------------------------------------------------------------------------------------------
 
+local help
 local function status()
   print_("v" .. (AGR.version or "?") .. (db.enabled and "" or " |cffff5555(off)|r"))
   print_("AutoGear: " .. (hasAutoGear() and "found" or "|cffff5555missing|r")
@@ -403,18 +404,31 @@ local function status()
   end
   local reason = AGR.PauseReason()
   if reason then print_("pause reason: " .. reason) end
+  print_("type /agr help for the commands.")
 end
 
-local function help()
-  print_("/agr status | scale <1|2> <name> | scale <1|2> clear | add <set> | remove <set> | auto | on | off | debug")
+help = function()
+  print_("commands:")
+  print_("  /agr status  shows what's detected, scales, sets and pause state")
+  print_("  /agr scale <1|2> <Pawn scale name>  uses that scale in spec 1 or 2")
+  print_("  /agr scale <1|2> clear  goes back to AutoGear's class profile")
+  print_("  /agr add <set> / remove <set>  picks the ItemRack sets to update yourself")
+  print_("  /agr auto  updates every main set of your active spec again")
+  print_("  /agr on / off  turns AutoGearRack on or off")
+  print_("  /agr debug  toggles verbose messages")
 end
 
 function AGR.Slash(msg)
   msg = (msg or ""):gsub("^%s+", ""):gsub("%s+$", "")
   local cmd, rest = msg:match("^(%S*)%s*(.-)$")
   cmd = (cmd or ""):lower()
-  if cmd == "" or cmd == "status" then
+  if cmd == "" then
     status()
+    help()
+  elseif cmd == "status" then
+    status()
+  elseif cmd == "help" or cmd == "?" then
+    help()
   elseif cmd == "scale" then
     local s, name = rest:match("^(%d)%s+(.+)$")
     s = tonumber(s)

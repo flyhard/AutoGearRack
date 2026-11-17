@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1 (2026-11-17)
+
+- `/agr` now lists the commands after the status, and `/agr help` shows them on their own.
+
 ## 1.0.0 (2026-11-17)
 
 - Per-spec Pawn scale for AutoGear (`/agr scale`), with Use Pawn turned on once at first login.

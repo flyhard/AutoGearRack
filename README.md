@@ -34,7 +34,9 @@ A set only changes in a slot it already saves, and only if that slot held the it
 
 | Command | Does |
 |---|---|
-| `/agr` or `/agr status` | Show what's detected, the scales, the sets that follow AutoGear and any pause |
+| `/agr` | Status plus the command list |
+| `/agr status` | Show what's detected, the scales, the sets that follow AutoGear and any pause |
+| `/agr help` | List the commands |
 | `/agr scale <1\|2> <name>` | Use this Pawn scale in spec 1 or 2 (`clear` removes it) |
 | `/agr add <set>` / `/agr remove <set>` | Pick the sets to update yourself |
 | `/agr auto` | Update every main set of the active spec again |
