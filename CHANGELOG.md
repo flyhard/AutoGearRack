@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0 (2026-11-17)
+
+- Settings panel under Options > AddOns (`/agr options`): status, Enabled and verbose toggles, a Pawn scale dropdown per spec, and the ItemRack set list with what follows AutoGear.
+- "Pick the sets myself" starts from the sets automatic mode updates; `/agr add` works the same way.
+
 ## 1.0.1 (2026-11-17)
 
 - `/agr` now lists the commands after the status, and `/agr help` shows them on their own.

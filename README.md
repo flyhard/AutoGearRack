@@ -16,6 +16,10 @@ AutoGearRack never equips anything itself.
 
 ## Setup
 
+Open **Options > AddOns > AutoGearRack** (or type `/agr options`). The panel shows what's detected, a Pawn scale dropdown for each spec, and your ItemRack sets with whether each one follows AutoGear.
+
+The same settings work from chat:
+
 1. `/agr status` lists your Pawn scales, your ItemRack sets and what AutoGearRack will do with each.
 2. Pick a scale per spec: `/agr scale 1 <scale name>` and, if you use dual spec, `/agr scale 2 <scale name>`.
 3. In ItemRack, tick "Primary Spec" or "Secondary Spec" on sets that belong to one spec.
@@ -26,7 +30,7 @@ On first login AutoGearRack turns on AutoGear's "Use Pawn to evaluate upgrades".
 
 By default, every **main set** (a set that saves 10 or more slots) that is tied to your active spec or to no spec. Sets with fewer slots count as situational and are left alone, and so are sets tied to your other spec.
 
-To choose the sets yourself: `/agr add <set>` and `/agr remove <set>`. `/agr auto` goes back to automatic.
+To choose the sets yourself, tick "Pick the sets myself" in the panel, or use `/agr add <set>` and `/agr remove <set>`. Picking starts from the sets automatic mode would update, so nothing changes until you tick or untick a set. `/agr auto` goes back to automatic.
 
 A set only changes in a slot it already saves, and only if that slot held the item AutoGear just replaced.
 
@@ -37,6 +41,7 @@ A set only changes in a slot it already saves, and only if that slot held the it
 | `/agr` | Status plus the command list |
 | `/agr status` | Show what's detected, the scales, the sets that follow AutoGear and any pause |
 | `/agr help` | List the commands |
+| `/agr options` | Open the settings panel |
 | `/agr scale <1\|2> <name>` | Use this Pawn scale in spec 1 or 2 (`clear` removes it) |
 | `/agr add <set>` / `/agr remove <set>` | Pick the sets to update yourself |
 | `/agr auto` | Update every main set of the active spec again |
