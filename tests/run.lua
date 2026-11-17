@@ -46,12 +46,46 @@ function EquipCursorItem() end
 function PickupInventoryItem() end
 SlashCmdList = {}
 
-function CreateFrame()
-  return {
-    RegisterEvent = function() end,
-    SetScript = function(_, _, fn) frameScript = fn end,
+-- generic widget mock: unknown methods are no-ops, a few keep state
+local function mock()
+  local obj = { scripts = {}, checked = false, shown = true, text = "" }
+  local methods = {
+    SetScript = function(self, name, fn)
+      self.scripts[name] = fn
+      if name == "OnEvent" and not frameScript then frameScript = fn end
+    end,
+    GetChecked = function(self) return self.checked end,
+    SetChecked = function(self, v) self.checked = v and true or false end,
+    IsVisible = function() return true end,
+    Show = function(self) self.shown = true end,
+    Hide = function(self) self.shown = false end,
+    SetShown = function(self, v) self.shown = v and true or false end,
+    SetText = function(self, t) self.text = t end,
+    GetText = function(self) return self.text end,
+    CreateFontString = function() return mock() end,
+    SetupMenu = function(self, fn) self.menuFn = fn end,
+    GenerateMenu = function(self)
+      local root = { radios = {} }
+      function root:CreateRadio(text, isSelected, onSelect)
+        self.radios[#self.radios + 1] = { text = text, selected = isSelected(), select = onSelect }
+      end
+      self.menuFn(self, root)
+      self.lastMenu = root
+    end,
+    Click = function(self)
+      self.checked = not self.checked
+      if self.scripts.OnClick then self.scripts.OnClick(self) end
+    end,
   }
+  return setmetatable(obj, { __index = function(_, k) return methods[k] or function() end end })
 end
+function CreateFrame() return mock() end
+MenuUtil, WowStyle1DropdownMixin = {}, {}
+Settings = {
+  RegisterCanvasLayoutCategory = function() return { GetID = function() return 7 end } end,
+  RegisterAddOnCategory = function() end,
+  OpenToCategory = function(id) Settings.opened = id end,
+}
 local function fire(event, ...) frameScript(nil, event, ...) end
 
 -- ItemRack stub (Universal-like)
@@ -81,6 +115,7 @@ end
 
 reset()
 dofile("AutoGearRack.lua")
+dofile("Options.lua")
 local AGR = AutoGearRack
 
 local failures, count = 0, 0
@@ -184,13 +219,18 @@ do
   ItemRackUser.Sets.Alt = fullSet(100)
   ItemRackUser.Sets.Alt.equip[9] = "109:0:0"
   ItemRackUser.Sets.Main.equip[9] = "109:0:0"
-  AGR.Slash("add Alt")
+  ItemRackUser.Sets.Few = { equip = { [1] = "101:0:0", [9] = "109:0:0" } }
+  AGR.Slash("add Few")
+  check("picking starts from the automatic sets", AutoGearRackDB.manual and AutoGearRackDB.sets.Main and AutoGearRackDB.sets.Alt and AutoGearRackDB.sets.Few)
+  AGR.Slash("remove Main")
   autogearEquip(9, "999:1:1")
   advance(2)
   check("listed set updated", ItemRackUser.Sets.Alt.equip[9] == "999:1:1")
+  check("picked situational set updated", ItemRackUser.Sets.Few.equip[9] == "999:1:1")
   check("unlisted main set left alone", ItemRackUser.Sets.Main.equip[9] == "109:0:0")
   AGR.Slash("auto")
-  check("auto clears list", next(AutoGearRackDB.sets) == nil)
+  check("auto clears list", next(AutoGearRackDB.sets) == nil and not AutoGearRackDB.manual)
+  ItemRackUser.Sets.Few = nil
 end
 
 -- 9. ItemRack swapping: changes ignored, flush waits
@@ -281,6 +321,35 @@ do
   messages = {}
   AGR.Slash("help")
   check("/agr help lists the commands", #messages >= 7)
+end
+
+-- 16. options panel builds, lists sets and drives settings
+do
+  local panel = AGR.optionsPanel
+  check("options panel created and registered", panel ~= nil and AGR.OpenOptions ~= nil)
+  AGR.Slash("options")
+  check("/agr options opens the panel", Settings.opened == 7)
+  local ok, err = pcall(panel.scripts.OnShow)
+  check("panel refreshes without errors" .. (ok and "" or (": " .. tostring(err))), ok)
+  -- find the Main row and the spec 1 dropdown
+  -- spec dropdowns list the class profile plus both Pawn scales, with spec 1's scale selected
+  local menu
+  ok, err = pcall(function()
+    AGR.CreateOptions() -- no-op on second call
+    AGR.RefreshOptions()
+  end)
+  check("refresh ok" .. (ok and "" or (": " .. tostring(err))), ok)
+  -- pick through the dropdown menu of spec 1
+  AGR.SetScale(1, nil)
+  check("dropdown clear goes to class profile", AutoGearRackDB.scales[1] == nil and AutoGearDB.OverridePawnScale == false)
+  AGR.SetScale(1, "Paladin: Retribution")
+  check("dropdown pick applies scale", AutoGearDB.PawnScale == "Paladin: Retribution")
+  -- clicking a set row in automatic mode switches to picking and unticks only that set
+  AGR.SetManual(false)
+  AGR.SetPicked("Alt", nil)
+  check("unticking a row in auto mode keeps the others", AutoGearRackDB.manual and AutoGearRackDB.sets.Main and not AutoGearRackDB.sets.Alt)
+  AGR.SetManual(false)
+  check("back to automatic", not AutoGearRackDB.manual and next(AutoGearRackDB.sets) == nil)
 end
 
 -- 15. status runs without errors

@@ -85,9 +85,11 @@ function AGR.IsMainSet(name)
   return set and not isInternal(name) and AGR.SavedSlotCount(set) >= MAIN_SET_MIN_SLOTS or false
 end
 
+-- the sets Per picked, when "choose sets myself" is on (may be empty: then nothing updates)
 local function explicitList()
-  return db and db.sets and next(db.sets) and db.sets or nil
+  return db and db.manual and db.sets or nil
 end
+AGR.ExplicitList = explicitList
 
 -- returns ordered list of {name, set} that receive AutoGear upgrades, plus skipped {name, reason}
 function AGR.TargetSets()
@@ -102,7 +104,7 @@ function AGR.TargetSets()
     local set = ItemRackUser.Sets[name]
     local setSpec = AGR.SetSpec(set)
     if explicit and not explicit[name] then
-      skipped[#skipped + 1] = { name, "not in your /agr list" }
+      skipped[#skipped + 1] = { name, "not picked" }
     elseif not explicit and AGR.SavedSlotCount(set) < MAIN_SET_MIN_SLOTS then
       skipped[#skipped + 1] = { name, "situational (fewer than " .. MAIN_SET_MIN_SLOTS .. " slots)" }
     elseif setSpec and setSpec ~= spec then
@@ -313,6 +315,7 @@ local function pause(reason)
   AutoGearDB.Enabled = false
   db.pausedByUs = true
   print_("paused AutoGear: " .. reason .. ".")
+  AGR.Changed()
 end
 
 local function resume()
@@ -321,6 +324,7 @@ local function resume()
   AutoGearDB.Enabled = true
   print_("resumed AutoGear.")
   if type(AutoGearQueueScan) == "function" then pcall(AutoGearQueueScan) end
+  AGR.Changed()
 end
 
 function AGR.UpdatePause()
@@ -371,6 +375,77 @@ end
 ---------------------------------------------------------------------------------------------
 
 local help
+---------------------------------------------------------------------------------------------
+-- Settings API (used by slash commands and the options panel)
+---------------------------------------------------------------------------------------------
+
+-- key = Pawn scale key, or nil for AutoGear's class profile
+function AGR.SetScale(slot, key)
+  db.scales[slot] = key
+  warnedNoScale[slot] = nil
+  AGR.ApplyScale()
+end
+
+function AGR.SetManual(manual)
+  if manual and not db.manual then
+    -- start from what automatic mode updates now, so nothing changes until Per edits the list
+    wipe(db.sets)
+    for _, t in ipairs((AGR.TargetSets())) do db.sets[t[1]] = true end
+  end
+  db.manual = manual and true or false
+  if not db.manual then wipe(db.sets) end
+end
+
+function AGR.SetPicked(name, picked)
+  if not db.manual then AGR.SetManual(true) end
+  if picked then
+    db.sets[name] = true
+  else
+    db.sets[name] = nil
+  end
+end
+
+function AGR.SetEnabled(on)
+  db.enabled = on and true or false
+  if db.enabled then AGR.ApplyScale() end
+  AGR.UpdatePause()
+end
+
+-- sorted list of {key, label} for every Pawn scale
+function AGR.ScaleChoices()
+  local list = {}
+  if pawnReady() then
+    for key, scale in pairs(PawnCommon.Scales) do
+      local visible = type(PawnIsScaleVisible) ~= "function" or PawnIsScaleVisible(key)
+      list[#list + 1] = { key = key, label = (scale.LocalizedName or key) .. (visible and "" or " (hidden)"), visible = visible }
+    end
+    table.sort(list, function(a, b)
+      if a.visible ~= b.visible then return a.visible end
+      return a.label < b.label
+    end)
+  end
+  return list
+end
+
+-- sorted list of {name, slots, spec, main} for every user ItemRack set
+function AGR.SetInfo()
+  local list = {}
+  if hasItemRack() then
+    for name, set in pairs(ItemRackUser.Sets) do
+      if not isInternal(name) then
+        local slots = AGR.SavedSlotCount(set)
+        list[#list + 1] = { name = name, slots = slots, spec = AGR.SetSpec(set), main = slots >= MAIN_SET_MIN_SLOTS }
+      end
+    end
+    table.sort(list, function(a, b) return a.name < b.name end)
+  end
+  return list
+end
+
+function AGR.Changed()
+  if AGR.RefreshOptions then AGR.RefreshOptions() end
+end
+
 local function status()
   print_("v" .. (AGR.version or "?") .. (db.enabled and "" or " |cffff5555(off)|r"))
   print_("AutoGear: " .. (hasAutoGear() and "found" or "|cffff5555missing|r")
@@ -398,7 +473,7 @@ local function status()
     local targets, skipped = AGR.TargetSets()
     local t = {}
     for _, v in ipairs(targets) do t[#t + 1] = v[1] end
-    print_("sets that follow AutoGear" .. (explicitList() and " (your list)" or " (auto)") .. ": "
+    print_("sets that follow AutoGear" .. (explicitList() and " (picked by you)" or " (auto)") .. ": "
       .. (#t > 0 and table.concat(t, ", ") or "(none)"))
     for _, v in ipairs(skipped) do print_("  skipped " .. v[1] .. ": " .. v[2]) end
   end
@@ -409,6 +484,7 @@ end
 
 help = function()
   print_("commands:")
+  print_("  /agr options  opens the settings panel (also under Options > AddOns)")
   print_("  /agr status  shows what's detected, scales, sets and pause state")
   print_("  /agr scale <1|2> <Pawn scale name>  uses that scale in spec 1 or 2")
   print_("  /agr scale <1|2> clear  goes back to AutoGear's class profile")
@@ -434,44 +510,43 @@ function AGR.Slash(msg)
     s = tonumber(s)
     if not s or s < 1 or s > 2 then return help() end
     if name:lower() == "clear" then
-      db.scales[s] = nil
-      warnedNoScale[s] = nil
+      AGR.SetScale(s, nil)
       print_("spec " .. s .. " scale cleared.")
     else
       if not pawnReady() then return print_("Pawn isn't ready yet.") end
       local key = AGR.ResolveScale(name)
       if not key then return print_("Pawn has no scale named \"" .. name .. "\". /agr status lists them.") end
-      db.scales[s] = key
-      warnedNoScale[s] = nil
       print_("spec " .. s .. " will use Pawn scale \"" .. key .. "\".")
+      AGR.SetScale(s, key)
     end
-    AGR.ApplyScale()
   elseif cmd == "add" or cmd == "remove" then
     if rest == "" then return help() end
     if cmd == "add" then
       if not (hasItemRack() and ItemRackUser.Sets[rest]) or isInternal(rest) then
         return print_("ItemRack has no set named \"" .. rest .. "\".")
       end
-      db.sets[rest] = true
-      print_("\"" .. rest .. "\" will follow AutoGear. Only listed sets do now; /agr auto undoes that.")
+      local wasManual = db.manual
+      AGR.SetPicked(rest, true)
+      print_("\"" .. rest .. "\" will follow AutoGear." .. (wasManual and "" or " You now pick the sets yourself; /agr auto undoes that."))
     else
-      db.sets[rest] = nil
-      print_("\"" .. rest .. "\" removed from your list" .. (next(db.sets) and "." or "; back to automatic."))
+      AGR.SetPicked(rest, nil)
+      print_("\"" .. rest .. "\" removed from your sets.")
     end
   elseif cmd == "auto" then
-    wipe(db.sets)
+    AGR.SetManual(false)
     print_("automatic: every main set of your active spec follows AutoGear.")
+  elseif cmd == "options" or cmd == "config" then
+    if AGR.OpenOptions then AGR.OpenOptions() end
   elseif cmd == "on" or cmd == "off" then
-    db.enabled = (cmd == "on")
-    print_(db.enabled and "on." or "off.")
-    if db.enabled then AGR.ApplyScale() end
-    AGR.UpdatePause()
+    print_(cmd == "on" and "on." or "off.")
+    AGR.SetEnabled(cmd == "on")
   elseif cmd == "debug" then
     db.debug = not db.debug
     print_("debug " .. (db.debug and "on." or "off."))
   else
     help()
   end
+  AGR.Changed()
 end
 
 ---------------------------------------------------------------------------------------------
@@ -484,6 +559,7 @@ local function initDB()
   if db.enabled == nil then db.enabled = true end
   db.scales = db.scales or {}
   db.sets = db.sets or {}
+  if db.manual == nil then db.manual = next(db.sets) ~= nil end
   AGR.db = db
 end
 
@@ -503,6 +579,15 @@ function AGR.OnLogin()
   AGR.TakeSnapshot()
   waitForPawn(0)
   after(2, AGR.UpdatePause) -- also resumes a pause left over from before a /reload
+  if type(ItemRack) == "table" and type(ItemRack.RegisterExternalEventListener) == "function" then
+    for _, ev in ipairs({ "ITEMRACK_SET_SAVED", "ITEMRACK_SET_DELETED" }) do
+      pcall(ItemRack.RegisterExternalEventListener, ItemRack, ev, function() AGR.Changed() end)
+    end
+  end
+  if AGR.CreateOptions then
+    local ok, err = pcall(AGR.CreateOptions)
+    if not ok then print_("couldn't build the options panel: " .. tostring(err)) end
+  end
 end
 
 local frame = CreateFrame("Frame")

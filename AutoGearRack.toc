@@ -1,7 +1,7 @@
 ## Interface: 16001, 11601
 ## Title: AutoGearRack
 ## Notes: Lets AutoGear pick gear with your Pawn scale per spec, and keeps your ItemRack sets up to date with its upgrades.
-## Version: 1.0.1
+## Version: 1.1.0
 ## Author: Per
 ## OptionalDeps: AutoGear, Pawn, ItemRack, ItemRack_Forever
 ## SavedVariablesPerCharacter: AutoGearRackDB
@@ -9,3 +9,4 @@
 ## X-Website: https://github.com/flyhard/AutoGearRack
 
 AutoGearRack.lua
+Options.lua
